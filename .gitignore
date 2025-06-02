@@ -1,0 +1,82 @@
+# Rust build artifacts
+/target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Environment variables (SENSITIVE)
+.env
+.env.local
+.env.production
+.env.development
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local configuration files (potentially sensitive)
+config.local.*
+
+# Backup files
+*.bak
+*.backup
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Coverage reports
+tarpaulin-report.html
+coverage/
+
+# Flamegraph files
+flamegraph.svg
+perf.data*
+
+# Benchmark results
+criterion/
+
+# Documentation build
+book/
+
+# Node modules (if any JS tooling is added)
+node_modules/
+
+# Python cache (if any Python tooling is added)
+__pycache__/
+*.pyc
+
+# Private keys and secrets (CRITICAL)
+*.key
+*.pem
+private_key*
+secrets/
+
+# Test artifacts
+test_results/
+*.profraw
