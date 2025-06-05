@@ -98,7 +98,7 @@ async fn execute_swap<M: Middleware + 'static>(
     
     // Configuration - Using VIRTUALS token as input
     let virtuals_address: Address = "0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b".parse()?; // VIRTUALS token on Base
-    let amount_in = U256::from(1_000_000_000_000_000u64); // 0.001 VIRTUALS (18 decimals)
+    let amount_in = U256::from(10_000_000_000_000_000_000u64); // 0.001 VIRTUALS (18 decimals)
     let path = vec![virtuals_address, token_out];
     let deadline = get_deadline_from_now(300); // 5 minutes
     

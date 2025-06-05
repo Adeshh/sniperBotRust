@@ -19,10 +19,10 @@ pub struct GasConfig {
 impl Default for GasConfig {
     fn default() -> Self {
         Self {
-            gas_limit: U256::from(5_000_000),  // 500k gas limit
+            gas_limit: U256::from(1_000_000),  // 500k gas limit
             gas_price: None,
-            max_fee_per_gas: Some(U256::from(2_500_000u64)),  // 0.02 gwei
-            max_priority_fee_per_gas: Some(U256::from(1_500_000u64)),  // 0.1 gwei
+            max_fee_per_gas: Some(U256::from(30_000_000_000u64)),  // 0.02 gwei
+            max_priority_fee_per_gas: Some(U256::from(10_000_000_000u64)),  // 0.1 gwei
         }
     }
 }

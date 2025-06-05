@@ -261,10 +261,23 @@ impl TokenDetector {
         match result.confidence {
             Confidence::Wanted => {
                 info!("🚀 DETECTED: {}", result.token);
+                // Set stop flag before executing callback (matching JS)
+                {
+                    let mut should_stop = self.should_stop.lock().await;
+                    *should_stop = true;
+                }
+                
                 // Execute callback if provided
                 if let Some(cb) = callback {
-                    if let Err(e) = cb(result.token.clone()).await {
-                        error!("❌ Callback execution failed: {}", e);
+                    info!("🔄 Callback triggered for: {}", result.token);
+                    info!("⚡ Executing onTokenFound callback...");
+                    match cb(result.token.clone()).await {
+                        Ok(_) => {
+                            info!("✅ Callback completed successfully");
+                        }
+                        Err(e) => {
+                            error!("❌ Callback execution failed: {}", e);
+                        }
                     }
                 }
                 return Ok(Some(result.token));
@@ -277,10 +290,23 @@ impl TokenDetector {
                     match self.verify_caller(tx_hash).await {
                         Ok(true) => {
                             info!("🚀 DETECTED: {}", result.token);
+                            // Set stop flag before executing callback (matching JS)
+                            {
+                                let mut should_stop = self.should_stop.lock().await;
+                                *should_stop = true;
+                            }
+                            
                             // Execute callback if provided
                             if let Some(cb) = callback {
-                                if let Err(e) = cb(result.token.clone()).await {
-                                    error!("❌ Verification callback failed: {}", e);
+                                info!("🔄 Verification callback triggered for: {}", result.token);
+                                info!("⚡ Executing onTokenFound callback...");
+                                match cb(result.token.clone()).await {
+                                    Ok(_) => {
+                                        info!("✅ Verification callback completed successfully");
+                                    }
+                                    Err(e) => {
+                                        error!("❌ Verification callback failed: {}", e);
+                                    }
                                 }
                             }
                             return Ok(Some(result.token));
@@ -294,10 +320,23 @@ impl TokenDetector {
                     }
                 } else {
                     info!("🚀 DETECTED: {}", result.token);
+                    // Set stop flag before executing callback (matching JS)
+                    {
+                        let mut should_stop = self.should_stop.lock().await;
+                        *should_stop = true;
+                    }
+                    
                     // Execute callback if provided
                     if let Some(cb) = callback {
-                        if let Err(e) = cb(result.token.clone()).await {
-                            error!("❌ Unverified mode callback failed: {}", e);
+                        info!("🔄 Trust mode callback triggered for: {}", result.token);
+                        info!("⚡ Executing onTokenFound callback...");
+                        match cb(result.token.clone()).await {
+                            Ok(_) => {
+                                info!("✅ Trust mode callback completed successfully");
+                            }
+                            Err(e) => {
+                                error!("❌ Trust mode callback failed: {}", e);
+                            }
                         }
                     }
                     return Ok(Some(result.token));
@@ -327,12 +366,14 @@ impl TokenDetector {
         info!("🔍 Monitoring for tokens from: {}", WANTED);
         info!("❌ Will reject tokens from: {}", UNWANTED);
         
-        // Connect to WebSocket (matching JS getProvider().on)
-        let (ws_stream, _) = connect_async(&self.wss_url).await?;
+        // Connect to WebSocket
+        let (ws_stream, _) = connect_async(&self.wss_url).await
+            .map_err(|e| anyhow!("Failed to connect to WebSocket: {}", e))?;
         let (mut ws_sender, mut ws_receiver) = ws_stream.split();
         
-        // Subscribe to logs (matching JS event listener)
+        // Subscribe to logs
         let subscription = serde_json::json!({
+            "jsonrpc": "2.0",
             "id": 1,
             "method": "eth_subscribe",
             "params": [
@@ -344,35 +385,79 @@ impl TokenDetector {
             ]
         });
         
-        ws_sender.send(Message::Text(subscription.to_string())).await?;
+        ws_sender.send(Message::Text(subscription.to_string())).await
+            .map_err(|e| anyhow!("Failed to send subscription: {}", e))?;
+        
+        info!("📤 Sent WebSocket subscription request");
         
         let mut callback_option = on_token_found;
+        let mut subscription_confirmed = false;
         
-        // Process incoming messages (matching JS event handling)
+        // Process incoming messages
         while let Some(msg) = ws_receiver.next().await {
-            match msg? {
+            // Check if we should stop
+            {
+                let should_stop = self.should_stop.lock().await;
+                if *should_stop {
+                    break;
+                }
+            }
+            
+            match msg.map_err(|e| anyhow!("WebSocket error: {}", e))? {
                 Message::Text(text) => {
+                    info!("📥 Received WebSocket message: {}", text);
+                    
                     if let Ok(json) = serde_json::from_str::<Value>(&text) {
-                        if let Some(params) = json.get("params") {
-                            if let Some(result) = params.get("result") {
-                                // Process event and get token immediately if found
-                                if let Some(callback) = callback_option.take() {
-                                    if let Ok(Some(token)) = self.process_event(result, Some(callback)).await {
-                                        info!("🎯 Returning detected token immediately: {}", token);
-                                        return Ok(token);
-                                    }
-                                } else {
-                                    // No callback, just return first detected token
-                                    if let Ok(Some(token)) = self.process_event(result, None::<fn(String) -> futures_util::future::Ready<Result<()>>>).await {
-                                        info!("🎯 Returning detected token immediately: {}", token);
-                                        return Ok(token);
+                        // Handle subscription confirmation
+                        if json.get("id").is_some() && json.get("result").is_some() {
+                            if let Some(sub_id) = json["result"].as_str() {
+                                subscription_confirmed = true;
+                                info!("✅ WebSocket subscription established: {}", sub_id);
+                                continue;
+                            }
+                        }
+                        
+                        // Handle subscription errors
+                        if let Some(error) = json.get("error") {
+                            error!("❌ Subscription failed: {}", error);
+                            return Err(anyhow!("Subscription error: {}", error));
+                        }
+                        
+                        // Only process events after subscription is confirmed
+                        if !subscription_confirmed {
+                            info!("⏳ Waiting for subscription confirmation...");
+                            continue;
+                        }
+                        
+                        // Handle subscription events (matching JS format)
+                        if json.get("method").and_then(|m| m.as_str()) == Some("eth_subscription") {
+                            if let Some(params) = json.get("params") {
+                                if let Some(result) = params.get("result") {
+                                    info!("🔍 Processing subscription event");
+                                    // Process event and get token immediately if found
+                                    if let Some(callback) = callback_option.take() {
+                                        if let Ok(Some(token)) = self.process_event(result, Some(callback)).await {
+                                            info!("🎯 Returning detected token immediately: {}", token);
+                                            return Ok(token);
+                                        }
+                                    } else {
+                                        // No callback, just return first detected token
+                                        if let Ok(Some(token)) = self.process_event(result, None::<fn(String) -> futures_util::future::Ready<Result<()>>>).await {
+                                            info!("🎯 Returning detected token immediately: {}", token);
+                                            return Ok(token);
+                                        }
                                     }
                                 }
                             }
                         }
+                    } else {
+                        error!("❌ Failed to parse WebSocket message as JSON: {}", text);
                     }
                 }
-                Message::Close(_) => break,
+                Message::Close(_) => {
+                    info!("🔌 WebSocket connection closed");
+                    return Err(anyhow!("WebSocket connection closed"));
+                }
                 _ => {}
             }
         }
