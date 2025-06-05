@@ -54,31 +54,20 @@ async fn main() -> Result<()> {
         // Live detection mode - no arguments provided
         info!("🔴 LIVE DETECTION MODE - Waiting for real-time token deployments...");
         
-        // Create a callback that immediately executes swap when token is found
-        let trader_clone = Arc::new(trader);
-        let callback = move |token_address: String| {
-            let trader = trader_clone.clone();
-            async move {
-                info!("🎯 TOKEN DETECTED: {} - Executing immediate swap", token_address);
-                
-                match execute_swap(&trader, &token_address, recipient).await {
-                    Ok(_) => {
-                        info!("✅ Swap execution completed for token: {}", token_address);
-                        Ok(())
+        // Start live detection and execute swap when token is found
+        match detector.monitor_live().await {
+            Ok(token_address) => {
+                if token_address != "No token detected" {
+                    info!("🎯 TOKEN DETECTED: {} - Executing immediate swap", token_address);
+                    
+                    match execute_swap(&trader, &token_address, recipient).await {
+                        Ok(_) => {
+                            info!("✅ Swap execution completed for token: {}", token_address);
+                        }
+                        Err(e) => {
+                            error!("❌ Swap failed for token {}: {}", token_address, e);
+                        }
                     }
-                    Err(e) => {
-                        error!("❌ Swap failed for token {}: {}", token_address, e);
-                        Err(e)
-                    }
-                }
-            }
-        };
-        
-        // Start live detection with immediate swap callback
-        match detector.get_token_address(Some(callback)).await {
-            Ok(token) => {
-                if token != "No token detected" {
-                    info!("✅ Live detection completed - Token: {}", token);
                 } else {
                     info!("❌ Live detection ended without finding tokens");
                 }
@@ -107,10 +96,10 @@ async fn main() -> Result<()> {
                 
                 info!("🎯 Detected {} token(s), executing swaps...", detected_tokens.len());
                 
-                for token_address in detected_tokens {
-                    match execute_swap(&trader, &token_address, recipient).await {
-                        Ok(_) => info!("✅ Swap completed for token: {}", token_address),
-                        Err(e) => error!("❌ Swap failed for token {}: {}", token_address, e),
+                for token_result in detected_tokens {
+                    match execute_swap(&trader, &token_result.token, recipient).await {
+                        Ok(_) => info!("✅ Swap completed for token: {}", token_result.token),
+                        Err(e) => error!("❌ Swap failed for token {}: {}", token_result.token, e),
                     }
                 }
             }

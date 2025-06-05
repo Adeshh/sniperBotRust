@@ -10,10 +10,6 @@ name = "main"
 path = "src/main.rs"
 
 [[bin]]
-name = "detector"
-path = "src/detector.rs"
-
-[[bin]]
 name = "testDetector"
 path = "src/testDetector.rs"
 
