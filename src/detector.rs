@@ -14,8 +14,9 @@ const DEPLOYER: &str = "0x71B8EFC8BCaD65a5D9386D07f2Dff57ab4EAf533";
 const WANTED: &str = "0x81F7cA6AF86D1CA6335E44A2C28bC88807491415";
 const UNWANTED: &str = "0x03Fb99ea8d3A832729a69C3e8273533b52f30D1A";
 
-// Pre-compiled patterns (matching JS)
+// Pre-compiled patterns (optimized for speed)
 const ZERO_ADDRESS: &str = "0x0000000000000000000000000000000000000000";
+const ZERO_HEX_PATTERN: &str = "000000000000000000000000";
 
 #[derive(Debug, Clone)]
 enum Confidence {
@@ -41,6 +42,8 @@ pub struct TokenDetector {
     address_regex: Regex,
     wanted_hex: String,
     unwanted_hex: String,
+    wanted_lower: String,
+    unwanted_lower: String,
 }
 
 impl TokenDetector {
@@ -57,11 +60,11 @@ impl TokenDetector {
         
         info!("🔧 Transaction verification: {}", if use_tx_verification { "ENABLED" } else { "DISABLED" });
         
-        // Pre-compiled regex (matching JS addressRegex)
+        // Pre-compiled regex (optimized for performance - matching JS addressRegex with /g behavior)
         let address_regex = Regex::new(r"000000000000000000000000([a-fA-F0-9]{40})")
             .map_err(|e| anyhow!("Failed to compile regex: {}", e))?;
         
-        // Pre-computed hex values (matching JS)
+        // Pre-computed hex values (matching JS, optimized)
         let wanted_hex = WANTED[2..].to_lowercase(); // Remove 0x prefix
         let unwanted_hex = UNWANTED[2..].to_lowercase(); // Remove 0x prefix
         
@@ -75,25 +78,36 @@ impl TokenDetector {
             address_regex,
             wanted_hex,
             unwanted_hex,
+            wanted_lower: WANTED.to_lowercase(),
+            unwanted_lower: UNWANTED.to_lowercase(),
         })
     }
 
-    // Extract token and determine caller in one pass (matching JS extractTokenAndCaller)
+    // Extract token and determine caller in one pass (optimized for speed)
     fn extract_token_and_caller(&self, data: &str) -> Option<TokenResult> {
         if data.is_empty() || data.len() < 130 {
             return None;
         }
         
-        let mut addresses = Vec::new();
+        // Pre-allocate with known capacity for speed
+        let mut addresses = Vec::with_capacity(10);
         
-        // Extract addresses using regex (matching JS logic exactly)
+        // Extract addresses using optimized regex (matching JS logic exactly)
         for cap in self.address_regex.captures_iter(data) {
             if addresses.len() >= 10 {
                 break;
             }
-            let addr = format!("0x{}", &cap[1]);
-            if addr != ZERO_ADDRESS {
-                addresses.push(addr);
+            
+            // Get the captured hex string directly (avoid format! allocation)
+            if let Some(hex_match) = cap.get(1) {
+                let hex_str = hex_match.as_str();
+                
+                // Quick zero check without string allocation
+                if hex_str != "0000000000000000000000000000000000000000" {
+                    // Only allocate string when we need it
+                    let addr = format!("0x{}", hex_str);
+                    addresses.push(addr);
+                }
             }
         }
         
@@ -104,15 +118,16 @@ impl TokenDetector {
         // Token is at addresses[1] (matching JS exactly)
         let token = addresses[1].clone();
         
-        // Check exact addresses first (matching JS logic)
+        // Optimized exact address checking (pre-computed lowercase)
         for addr in &addresses {
-            if addr.to_lowercase() == WANTED.to_lowercase() {
+            let addr_lower = addr.to_lowercase();
+            if addr_lower == self.wanted_lower {
                 return Some(TokenResult {
                     token,
                     confidence: Confidence::Wanted,
                 });
             }
-            if addr.to_lowercase() == UNWANTED.to_lowercase() {
+            if addr_lower == self.unwanted_lower {
                 return Some(TokenResult {
                     token,
                     confidence: Confidence::Unwanted,
@@ -120,7 +135,7 @@ impl TokenDetector {
             }
         }
         
-        // Pattern matching fallback (matching JS logic)
+        // Pattern matching fallback (optimized - convert data to lowercase once)
         let data_lower = data.to_lowercase();
         if data_lower.contains(&self.unwanted_hex) {
             return Some(TokenResult {
@@ -261,25 +276,29 @@ impl TokenDetector {
         match result.confidence {
             Confidence::Wanted => {
                 info!("🚀 DETECTED: {}", result.token);
-                // Set stop flag before executing callback (matching JS)
+                // Set stop flag immediately (no need to wait for callback)
                 {
                     let mut should_stop = self.should_stop.lock().await;
                     *should_stop = true;
                 }
                 
-                // Execute callback if provided
+                // Execute callback in background if provided, but return token immediately
                 if let Some(cb) = callback {
-                    info!("🔄 Callback triggered for: {}", result.token);
-                    info!("⚡ Executing onTokenFound callback...");
-                    match cb(result.token.clone()).await {
-                        Ok(_) => {
-                            info!("✅ Callback completed successfully");
+                    let token_clone = result.token.clone();
+                    tokio::spawn(async move {
+                        info!("🔄 Callback triggered for: {}", token_clone);
+                        info!("⚡ Executing onTokenFound callback...");
+                        match cb(token_clone.clone()).await {
+                            Ok(_) => {
+                                info!("✅ Callback completed successfully");
+                            }
+                            Err(e) => {
+                                error!("❌ Callback execution failed: {}", e);
+                            }
                         }
-                        Err(e) => {
-                            error!("❌ Callback execution failed: {}", e);
-                        }
-                    }
+                    });
                 }
+                // Return immediately without waiting for callback
                 return Ok(Some(result.token));
             }
             Confidence::Unwanted => {
@@ -290,25 +309,29 @@ impl TokenDetector {
                     match self.verify_caller(tx_hash).await {
                         Ok(true) => {
                             info!("🚀 DETECTED: {}", result.token);
-                            // Set stop flag before executing callback (matching JS)
+                            // Set stop flag immediately
                             {
                                 let mut should_stop = self.should_stop.lock().await;
                                 *should_stop = true;
                             }
                             
-                            // Execute callback if provided
+                            // Execute callback in background if provided, but return token immediately
                             if let Some(cb) = callback {
-                                info!("🔄 Verification callback triggered for: {}", result.token);
-                                info!("⚡ Executing onTokenFound callback...");
-                                match cb(result.token.clone()).await {
-                                    Ok(_) => {
-                                        info!("✅ Verification callback completed successfully");
+                                let token_clone = result.token.clone();
+                                tokio::spawn(async move {
+                                    info!("🔄 Verification callback triggered for: {}", token_clone);
+                                    info!("⚡ Executing onTokenFound callback...");
+                                    match cb(token_clone.clone()).await {
+                                        Ok(_) => {
+                                            info!("✅ Verification callback completed successfully");
+                                        }
+                                        Err(e) => {
+                                            error!("❌ Verification callback failed: {}", e);
+                                        }
                                     }
-                                    Err(e) => {
-                                        error!("❌ Verification callback failed: {}", e);
-                                    }
-                                }
+                                });
                             }
+                            // Return immediately without waiting for callback
                             return Ok(Some(result.token));
                         }
                         Ok(false) => {
@@ -320,25 +343,29 @@ impl TokenDetector {
                     }
                 } else {
                     info!("🚀 DETECTED: {}", result.token);
-                    // Set stop flag before executing callback (matching JS)
+                    // Set stop flag immediately
                     {
                         let mut should_stop = self.should_stop.lock().await;
                         *should_stop = true;
                     }
                     
-                    // Execute callback if provided
+                    // Execute callback in background if provided, but return token immediately
                     if let Some(cb) = callback {
-                        info!("🔄 Trust mode callback triggered for: {}", result.token);
-                        info!("⚡ Executing onTokenFound callback...");
-                        match cb(result.token.clone()).await {
-                            Ok(_) => {
-                                info!("✅ Trust mode callback completed successfully");
+                        let token_clone = result.token.clone();
+                        tokio::spawn(async move {
+                            info!("🔄 Trust mode callback triggered for: {}", token_clone);
+                            info!("⚡ Executing onTokenFound callback...");
+                            match cb(token_clone.clone()).await {
+                                Ok(_) => {
+                                    info!("✅ Trust mode callback completed successfully");
+                                }
+                                Err(e) => {
+                                    error!("❌ Trust mode callback failed: {}", e);
+                                }
                             }
-                            Err(e) => {
-                                error!("❌ Trust mode callback failed: {}", e);
-                            }
-                        }
+                        });
                     }
+                    // Return immediately without waiting for callback
                     return Ok(Some(result.token));
                 }
             }
