@@ -28,34 +28,36 @@ async fn main() -> Result<()> {
     
     info!("🚀 Starting live token detection and auto-swap system");
     
-    // Setup wallet and provider for swapping using WebSocket (faster for sniping)
-    let provider = Provider::<Ws>::connect(&wss_url).await?;
+    // 🚀 PRE-INITIALIZE SWAP CONNECTION (for maximum speed)
+    info!("⚡ Pre-initializing swap WebSocket connection...");
+    let swap_provider = Provider::<Ws>::connect(&wss_url).await?;
     let wallet: LocalWallet = private_key.parse()?;
     
     // Set the correct chain ID for Base network (8453)
     let wallet = wallet.with_chain_id(8453u64);
     
-    let client = SignerMiddleware::new(provider, wallet);
-    let client = Arc::new(client);
-    let recipient = client.address();
+    let swap_client = SignerMiddleware::new(swap_provider, wallet);
+    let swap_client = Arc::new(swap_client);
+    let recipient = swap_client.address();
     
-    // Create Uniswap trader
-    let trader = UniswapTrader::new(client.clone())?;
-    info!("✅ Uniswap trader initialized");
+    // 🚀 PRE-INITIALIZE UNISWAP TRADER (ready for instant swap)
+    let trader = Arc::new(UniswapTrader::new(swap_client.clone())?);
+    info!("✅ Swap connection pre-initialized and ready");
     
-    // Create token detector
+    // 🔍 INITIALIZE DETECTOR WITH SEPARATE CONNECTION (no interference)
     let detector = TokenDetector::new()?;
-    info!("✅ Token detector initialized");
+    info!("✅ Token detector initialized with separate connection");
     
-    info!("🔴 LIVE DETECTION MODE - Monitoring for real-time token deployments...");
+    info!("🔴 LIVE DETECTION MODE - Pre-initialized for instant swapping...");
     
-    // Create a callback that immediately executes swap when token is found
-    let trader_clone = Arc::new(trader);
+    // ⚡ ULTRA-FAST CALLBACK with pre-initialized trader
+    let trader_clone = trader.clone();
     let callback = move |token_address: String| {
         let trader = trader_clone.clone();
         async move {
-            info!("🎯 TOKEN DETECTED: {} - Executing immediate swap", token_address);
+            info!("🎯 TOKEN DETECTED: {} - Executing INSTANT swap", token_address);
             
+            // INSTANT swap execution with pre-initialized connection
             match execute_swap(&trader, &token_address, recipient).await {
                 Ok(_) => {
                     info!("✅ Swap execution completed for token: {}", token_address);
@@ -69,7 +71,7 @@ async fn main() -> Result<()> {
         }
     };
     
-    // Start live detection with immediate swap callback
+    // 🚀 START DETECTION with pre-initialized swap infrastructure
     match detector.get_token_address(Some(callback)).await {
         Ok(token) => {
             if token != "No token detected" {
@@ -86,6 +88,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+// ⚡ ULTRA-FAST SWAP with pre-initialized connection
 async fn execute_swap<M: Middleware + 'static>(
     trader: &UniswapTrader<M>,
     token_address: &str,
@@ -98,14 +101,14 @@ async fn execute_swap<M: Middleware + 'static>(
     
     // Configuration - Using VIRTUALS token as input
     let virtuals_address: Address = "0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b".parse()?; // VIRTUALS token on Base
-    let amount_in = U256::from(10_000_000_000_000_000_000u64); // 0.001 VIRTUALS (18 decimals)
+    let amount_in = U256::from(10_000_000_000_000_000_000u64); // 10 VIRTUALS (18 decimals)
     let path = vec![virtuals_address, token_out];
     let deadline = get_deadline_from_now(300); // 5 minutes
     
     // Minimum amount out (allowing for slippage)
     let amount_out_min = U256::from(1); // Accept any amount of output tokens
     
-    // Execute swap immediately - NO LOGS BEFORE THIS POINT
+    // ⚡ INSTANT SWAP EXECUTION (connection already established)
     let receipt = trader.swap_exact_tokens_for_tokens(
         amount_in,
         amount_out_min,

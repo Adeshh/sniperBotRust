@@ -137,25 +137,25 @@ async fn execute_swap<M: Middleware + 'static>(
     // Minimum amount out (allowing for slippage)
     let amount_out_min = U256::from(1); // Accept any amount of output tokens
     
-    // Execute swap immediately - NO LOGS BEFORE THIS POINT
-    let receipt = trader.swap_exact_tokens_for_tokens(
-        amount_in,
-        amount_out_min,
-        path,
-        recipient,
-        deadline,
-        Some(GasConfig::default())
-    ).await?;
+    // // Execute swap immediately - NO LOGS BEFORE THIS POINT
+    // let receipt = trader.swap_exact_tokens_for_tokens(
+    //     amount_in,
+    //     amount_out_min,
+    //     path,
+    //     recipient,
+    //     deadline,
+    //     Some(GasConfig::default())
+    // ).await?;
     
-    let execution_time = start_time.elapsed();
+    // let execution_time = start_time.elapsed();
     
-    // Log detailed transaction information after swap is sent
-    info!("🎯 SWAP SENT! Hash: {}", receipt.transaction_hash);
-    info!("⚡ Execution Time: {:?}", execution_time);
-    info!("⛽ Gas Used: {}", receipt.gas_used.unwrap_or_default());
-    info!("🎯 Block: {}", receipt.block_number.unwrap_or_default());
-    info!("💰 Token: {}", token_address);
-    info!("🔗 Explorer: https://basescan.org/tx/{}", receipt.transaction_hash);
+    // // Log detailed transaction information after swap is sent
+    // info!("🎯 SWAP SENT! Hash: {}", receipt.transaction_hash);
+    // info!("⚡ Execution Time: {:?}", execution_time);
+    // info!("⛽ Gas Used: {}", receipt.gas_used.unwrap_or_default());
+    // info!("🎯 Block: {}", receipt.block_number.unwrap_or_default());
+    // info!("💰 Token: {}", token_address);
+    // info!("🔗 Explorer: https://basescan.org/tx/{}", receipt.transaction_hash);
     
     Ok(())
 } 
