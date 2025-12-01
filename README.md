@@ -151,7 +151,7 @@ The bot monitors for tokens deployed by specific addresses:
 
 - **Target Deployer**: `0x71B8EFC8BCaD65a5D9386D07f2Dff57ab4EAf533`
 - **Wanted Caller**: `0x81F7cA6AF86D1CA6335E44A2C28bC88807491415`  
-- **Unwanted Caller**: `0x03Fb99ea8d3A832729a69C3e8273533b52f30D1A`
+- **Unwanted Caller**: `0x03Fb99ea8d3A832729a69C3e8273533b52f30D1A` # sometimes virtuals deploy token with same name from this address to prevent sniping
 
 ### Gas Configuration
 
@@ -204,7 +204,7 @@ cargo run --bin testDetector 30948300 30948310
 The detection system uses three confidence levels:
 
 1. **Wanted** ✅: Direct match with wanted caller address
-2. **Unwanted** ❌: Direct match with unwanted caller address  
+2. **Unwanted** ❌: Direct match with unwanted caller address as there is a possibility of fake token launch
 3. **Verify** 🔍: Requires transaction verification
 
 ### Verification Process
