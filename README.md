@@ -11,6 +11,7 @@ A high-performance, real-time token detection and automatic swapping bot built i
 - **Base Network**: Configured for Base (Chain ID 8453) with Uniswap V2
 - **Verification System**: Optional transaction caller verification
 - **Multiple Modes**: Production sniping and testing capabilities
+-**Flashblock Integration Ready**: Integration with [Base Flashblocks](https://docs.base.org/docs/developers/flashblocks/) would significantly improve execution speed by enabling transactions to be included in the next block with higher priority. This is not in the project. At the time the code was created, Flashblocks was unsupported.
 
 ## 🏗️ Architecture
 
@@ -333,6 +334,14 @@ The bot is optimized for minimal latency:
    ```bash
    cargo run
    ```
+   
+```markdown
+## 📌 Project Status
+
+**Built ~7 months ago** specifically for Virtual token sniping on Base network. The bot should still work with current Virtual token deployments, but may require minimal tweaks due to protocol updates over time.
+
+**Performance Enhancement**: Integration with [Base Flashblocks](https://docs.base.org/docs/developers/flashblocks/) would significantly improve execution speed by enabling transactions to be included in the next block with higher priority. This is a recommended enhancement for production use.
+```
 
 ## 📈 Performance Tips
 
